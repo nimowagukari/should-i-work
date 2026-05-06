@@ -1,0 +1,86 @@
+openapi: 3.1.0
+info:
+  title: should-i-work API
+  version: 1.0.0
+  description: |
+    指定した日付が日本の祝日／休日かどうかを判定するシンプルな API。
+
+tags:
+  - name: holiday
+    description: 休日判定に関するエンドポイント
+
+paths:
+  /v1/holiday:
+    get:
+      tags: [holiday]
+      summary: 指定した日付が休日かどうかを判定する
+      description: |
+        指定された日付が日本の祝日・振替休日・国民の休日・週末などで
+        勤務すべきかどうかを判定します。
+        国やタイムゾーンは内部実装として固定（例: JP / Asia/Tokyo）とし、
+        API インターフェースとしては `date` のみを要求します。
+      parameters:
+        - in: query
+          name: date
+          required: true
+          description: 判定対象の日付 (ISO 8601 日付形式 `YYYY-MM-DD`)
+          schema:
+            type: string
+            format: date
+          example: "2026-05-03"
+      responses:
+        "200":
+          description: 休日判定結果
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HolidayDecision"
+        "400":
+          description: 不正なリクエスト（例：日付形式が不正）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: サーバー内部エラー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+components:
+  schemas:
+    HolidayDecision:
+      type: object
+      required:
+        - date
+        - isHoliday
+      properties:
+        date:
+          type: string
+          format: date
+          description: 判定対象の日付
+          example: "2026-05-03"
+        isHoliday:
+          type: boolean
+          description: 当日が祝日／休日であるかどうか
+          example: true
+
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          description: エラーコード
+          example: INVALID_DATE
+        message:
+          type: string
+          description: エラーメッセージ
+          example: "date は YYYY-MM-DD 形式で指定してください。"
+        details:
+          type: object
+          additionalProperties: true
+          description: エラーの詳細情報
