@@ -10,34 +10,38 @@
 	},
 	"features": {
 		"ghcr.io/devcontainers/features/aws-cli:1": {},
-		"ghcr.io/devcontainers/features/git:1": {}
+		"ghcr.io/devcontainers/features/git:1": {},
+		"ghcr.io/devcontainers-extra/features/tfswitch:1": {},
+		"ghcr.io/devcontainers/features/node:2": {},
+		"ghcr.io/anthropics/devcontainer-features/claude-code:1": {}
 	},
 	"customizations": {
 		"vscode": {
 			"extensions": [
 				"golang.Go",
 				"saoudrizwan.claude-dev",
-				"redhat.vscode-yaml"
+				"redhat.vscode-yaml",
+				"hashicorp.terraform",
+				"Anthropic.claude-code"
 			]
 		}
 	},
 	"runArgs": [
 		"--name",
 		"${localWorkspaceFolderBasename}"
+	],
+	"mounts": [
+		"source=claude-code-config,target=/home/golang/.claude,type=volume",
+		"source=${localEnv:HOME}/.aws,target=/home/golang/.aws,type=bind"
 	]
-
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	// "features": {},
-
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// "forwardPorts": [],
-
 	// Uncomment the next line to run commands after the container is created.
 	// "postCreateCommand": "cat /etc/os-release",
-
 	// Configure tool-specific properties.
 	// "customizations": {},
-
 	// Uncomment to connect as an existing user other than the container default. More info: https://aka.ms/dev-containers-non-root.
 	// "remoteUser": "devcontainer"
 }
