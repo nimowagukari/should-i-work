@@ -4,8 +4,11 @@ import (
 	"context"
 	"encoding/csv"
 	"encoding/json"
+	"errors"
+	"io"
 	"log"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/aws/aws-lambda-go/events"
@@ -56,9 +59,17 @@ func handleRequest(ctx context.Context, req events.APIGatewayProxyRequest) (even
 		}), nil
 	}
 
-	// シンプルな実装として、週末 (土日) 以外を労働日とみなす。
-	// 日本の祝日や振替休日などについては、将来的に専用ライブラリ等で拡張可能。
-	isWorkday := !isWeekend(parsed)
+	holidays, err := loadHolidaySet()
+	if err != nil {
+		log.Printf("failed to load holidays: %v", err)
+		return newErrorResponse(http.StatusInternalServerError, ErrorResponse{
+			Code:    "INTERNAL_ERROR",
+			Message: "internal server error",
+		}), nil
+	}
+
+	// 土日、および syukujitsu.csv に含まれる祝日（振替休日・国民の休日を含む）以外を労働日とみなす。
+	isWorkday := !isWeekend(parsed) && !isHoliday(parsed, holidays)
 
 	body, err := json.Marshal(WorkdayDecision{
 		Date:      dateStr,
@@ -87,6 +98,28 @@ func isWeekend(t time.Time) bool {
 	return wd == time.Saturday || wd == time.Sunday
 }
 
+var (
+	holidaysOnce sync.Once
+	holidaySet   map[string]struct{}
+	holidaysErr  error
+)
+
+// loadHolidaySet は parseHolidays の結果を初回呼び出し時にのみ取得し、
+// 以降はキャッシュを返します。Lambda の実行環境はウォームスタート時に
+// 再利用されるため、CSV のパースはコールドスタート時の一度だけで済みます。
+func loadHolidaySet() (map[string]struct{}, error) {
+	holidaysOnce.Do(func() {
+		holidaySet, holidaysErr = parseHolidays()
+	})
+	return holidaySet, holidaysErr
+}
+
+// isHoliday は与えられた日付が祝日集合に含まれていれば true を返します。
+func isHoliday(t time.Time, holidays map[string]struct{}) bool {
+	_, ok := holidays[t.Format("2006-01-02")]
+	return ok
+}
+
 // newErrorResponse は ErrorResponse を JSON にシリアライズして返します。
 func newErrorResponse(status int, errBody ErrorResponse) events.APIGatewayProxyResponse {
 	body, err := json.Marshal(errBody)
@@ -111,12 +144,9 @@ func newErrorResponse(status int, errBody ErrorResponse) events.APIGatewayProxyR
 	}
 }
 
-type Holiday struct {
-	Date time.Time `json:"date"`
-	Name string    `json:"name"`
-}
-
-func parseHolidays() ([]Holiday, error) {
+// parseHolidays は syukujitsu.csv をパースし、祝日（振替休日・国民の休日を含む）の
+// 日付文字列(YYYY-MM-DD)集合を返します。
+func parseHolidays() (map[string]struct{}, error) {
 	csvFile, err := data.CsvFS.Open("csv/syukujitsu.csv")
 	if err != nil {
 		return nil, err
@@ -128,28 +158,27 @@ func parseHolidays() ([]Holiday, error) {
 	if _, err := reader.Read(); err != nil {
 		return nil, err
 	}
-	holidays := []Holiday{}
+
 	loc, err := time.LoadLocation("Asia/Tokyo")
 	if err != nil {
 		return nil, err
 	}
+
+	holidays := make(map[string]struct{})
 	for {
 		record, err := reader.Read()
+		if errors.Is(err, io.EOF) {
+			break
+		}
 		if err != nil {
-			if err.Error() == "EOF" {
-				break
-			}
 			return nil, err
 		}
 		parsedDate, err := time.ParseInLocation("2006/1/2", record[0], loc)
 		if err != nil {
-			log.Printf("failed to parse date: %v", err)
+			log.Printf("failed to parse date %q: %v", record[0], err)
 			continue
 		}
-		holidays = append(holidays, Holiday{
-			Date: parsedDate,
-			Name: record[1],
-		})
+		holidays[parsedDate.Format("2006-01-02")] = struct{}{}
 	}
 
 	return holidays, nil
