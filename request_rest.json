@@ -1,10 +1,10 @@
 {
-    "path": "/v1/holiday",
+    "path": "/v1/workday",
     "httpMethod": "GET",
     "headers": {
         "Content-Type": "application/json"
     },
     "queryStringParameters": {
-        "date": "2026-09-13"
+        "date": "2026-09-14"
     }
 }

@@ -3,20 +3,20 @@ info:
   title: should-i-work API
   version: 1.0.0
   description: |
-    指定した日付が日本の祝日／休日かどうかを判定するシンプルな API。
+    指定した日付が労働日（出勤すべき日）かどうかを判定するシンプルな API。
 
 tags:
-  - name: holiday
-    description: 休日判定に関するエンドポイント
+  - name: workday
+    description: 労働日判定に関するエンドポイント
 
 paths:
-  /v1/holiday:
+  /v1/workday:
     get:
-      tags: [holiday]
-      summary: 指定した日付が休日かどうかを判定する
+      tags: [workday]
+      summary: 指定した日付が労働日かどうかを判定する
       description: |
-        指定された日付が日本の祝日・振替休日・国民の休日・週末などで
-        勤務すべきかどうかを判定します。
+        指定された日付が日本の祝日・振替休日・国民の休日・週末などを踏まえて
+        勤務すべき日（労働日）かどうかを判定します。
         国やタイムゾーンは内部実装として固定（例: JP / Asia/Tokyo）とし、
         API インターフェースとしては `date` のみを要求します。
       parameters:
@@ -30,11 +30,11 @@ paths:
           example: "2026-05-03"
       responses:
         "200":
-          description: 休日判定結果
+          description: 労働日判定結果
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/HolidayDecision"
+                $ref: "#/components/schemas/WorkdayDecision"
         "400":
           description: 不正なリクエスト（例：日付形式が不正）
           content:
@@ -50,21 +50,21 @@ paths:
 
 components:
   schemas:
-    HolidayDecision:
+    WorkdayDecision:
       type: object
       required:
         - date
-        - isHoliday
+        - isWorkday
       properties:
         date:
           type: string
           format: date
           description: 判定対象の日付
           example: "2026-05-03"
-        isHoliday:
+        isWorkday:
           type: boolean
-          description: 当日が祝日／休日であるかどうか
-          example: true
+          description: 当日が労働日（出勤すべき日）であるかどうか
+          example: false
 
     Error:
       type: object

@@ -13,10 +13,10 @@ import (
 	"github.com/nimowagukari/should-i-work/internal/data"
 )
 
-// HolidayDecision は OpenAPI の HolidayDecision スキーマに対応するレスポンスボディです。
-type HolidayDecision struct {
+// WorkdayDecision は OpenAPI の WorkdayDecision スキーマに対応するレスポンスボディです。
+type WorkdayDecision struct {
 	Date      string `json:"date"`
-	IsHoliday bool   `json:"isHoliday"`
+	IsWorkday bool   `json:"isWorkday"`
 }
 
 // ErrorResponse は OpenAPI の Error スキーマに対応するレスポンスボディです。
@@ -27,10 +27,10 @@ type ErrorResponse struct {
 }
 
 // handleRequest は API Gateway (REST) からのリクエストを受け取り、
-// `/v1/holiday` GET エンドポイントに対するレスポンスを返します。
+// `/v1/workday` GET エンドポイントに対するレスポンスを返します。
 func handleRequest(ctx context.Context, req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	// ルーティング: 今回は 1 エンドポイントのみなので、簡易なチェックにとどめる
-	if req.Path != "/v1/holiday" || req.HTTPMethod != http.MethodGet {
+	if req.Path != "/v1/workday" || req.HTTPMethod != http.MethodGet {
 		return newErrorResponse(http.StatusNotFound, ErrorResponse{
 			Code:    "NOT_FOUND",
 			Message: "resource not found",
@@ -56,16 +56,16 @@ func handleRequest(ctx context.Context, req events.APIGatewayProxyRequest) (even
 		}), nil
 	}
 
-	// シンプルな実装として、週末 (土日) を休日とみなす。
+	// シンプルな実装として、週末 (土日) 以外を労働日とみなす。
 	// 日本の祝日や振替休日などについては、将来的に専用ライブラリ等で拡張可能。
-	isHoliday := isWeekend(parsed)
+	isWorkday := !isWeekend(parsed)
 
-	body, err := json.Marshal(HolidayDecision{
+	body, err := json.Marshal(WorkdayDecision{
 		Date:      dateStr,
-		IsHoliday: isHoliday,
+		IsWorkday: isWorkday,
 	})
 	if err != nil {
-		log.Printf("failed to marshal HolidayDecision: %v", err)
+		log.Printf("failed to marshal WorkdayDecision: %v", err)
 		return newErrorResponse(http.StatusInternalServerError, ErrorResponse{
 			Code:    "INTERNAL_ERROR",
 			Message: "internal server error",

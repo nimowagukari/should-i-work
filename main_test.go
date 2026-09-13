@@ -13,7 +13,7 @@ import (
 func TestHandleRequest_Success(t *testing.T) {
 	req := events.APIGatewayProxyRequest{
 		HTTPMethod: http.MethodGet,
-		Path:       "/v1/holiday",
+		Path:       "/v1/workday",
 		QueryStringParameters: map[string]string{
 			"date": "2024-01-01",
 		},
@@ -27,7 +27,7 @@ func TestHandleRequest_Success(t *testing.T) {
 		t.Fatalf("unexpected status code: got %d, want %d", resp.StatusCode, http.StatusOK)
 	}
 
-	var body HolidayDecision
+	var body WorkdayDecision
 	if err := json.Unmarshal([]byte(resp.Body), &body); err != nil {
 		t.Fatalf("failed to unmarshal response body: %v", err)
 	}
@@ -39,7 +39,7 @@ func TestHandleRequest_Success(t *testing.T) {
 func TestHandleRequest_MissingDate(t *testing.T) {
 	req := events.APIGatewayProxyRequest{
 		HTTPMethod: http.MethodGet,
-		Path:       "/v1/holiday",
+		Path:       "/v1/workday",
 	}
 
 	resp, err := handleRequest(context.Background(), req)
@@ -62,7 +62,7 @@ func TestHandleRequest_MissingDate(t *testing.T) {
 func TestHandleRequest_InvalidDateFormat(t *testing.T) {
 	req := events.APIGatewayProxyRequest{
 		HTTPMethod: http.MethodGet,
-		Path:       "/v1/holiday",
+		Path:       "/v1/workday",
 		QueryStringParameters: map[string]string{
 			"date": "2026/05/03", // 不正形式
 		},
