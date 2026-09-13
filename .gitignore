@@ -129,3 +129,4 @@ terraform.rc
 
 # End of https://www.toptal.com/developers/gitignore/api/go,linux,macos,visualstudiocode,terraform
 /infras/terraform/terraform.tfbackend
+.env

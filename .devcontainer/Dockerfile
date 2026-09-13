@@ -9,10 +9,10 @@ RUN groupadd -g ${GID} golang && \
 
 # OS パッケージのインストール
 RUN apt-get update && apt-get install -y \
-        less \
-        locales \
-        vim \
-        zip && \
+    less \
+    locales \
+    vim \
+    zip && \
     rm -rf /var/lib/apt/lists/*
 
 # 日本語フォントの設定
@@ -28,3 +28,6 @@ RUN curl -Lo /usr/local/bin/aws-lambda-rie https://github.com/aws/aws-lambda-run
 
 WORKDIR /workspaces/should-i-work
 USER golang
+
+RUN mkdir -p /home/golang/.claude
+
