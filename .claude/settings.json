@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash(rm -rf:*)",
+      "Bash(rm -fr:*)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(git clean -fd:*)",
+      "Bash(git branch -D:*)",
+      "Read(.env)",
+      "Read(*.tfvars)",
+      "Read(*.tfstate)"
+    ],
+    "ask": [
+      "Bash(sudo:*)",
+      "Bash(chmod :*)",
+      "Bash(curl :*)",
+      "Bash(wget :*)"
+    ]
+  },
+  "plansDirectory": ".claude/plans"
+}
