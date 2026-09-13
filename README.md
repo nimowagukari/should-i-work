@@ -2,8 +2,16 @@
 
 このアプリは、指定した日付が日本の祝日／休日かどうかを判定する単純な HTTP API です。
 
-<!-- 
-TODO: 下記要対応
-  - tfswitch による terraform バイナリ追加方法の記述 or 自動化
+## 使用方法
 
--->
+[aws-lambda-rie](https://github.com/aws/aws-lambda-runtime-interface-emulator) を利用した検証が可能です。
+
+```bash
+# リクエスト内容の編集
+vi request_rest.json 
+jq '.' request_rest.json
+→ エラーが出ないこと
+
+curl -s -d @request_rest.json "localhost:8080/2015-03-31/functions/function/invocations" | jq '.body|=fromjson'
+→ エラーが出ないこと
+```
