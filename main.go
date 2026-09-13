@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/csv"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/nimowagukari/should-i-work/internal/data"
 )
 
 // HolidayDecision は OpenAPI の HolidayDecision スキーマに対応するレスポンスボディです。
@@ -107,6 +109,50 @@ func newErrorResponse(status int, errBody ErrorResponse) events.APIGatewayProxyR
 		},
 		Body: string(body),
 	}
+}
+
+type Holiday struct {
+	Date time.Time `json:"date"`
+	Name string    `json:"name"`
+}
+
+func parseHolidays() ([]Holiday, error) {
+	csvFile, err := data.CsvFS.Open("csv/syukujitsu.csv")
+	if err != nil {
+		return nil, err
+	}
+	defer csvFile.Close()
+
+	reader := csv.NewReader(csvFile)
+	// ヘッダー行をスキップ
+	if _, err := reader.Read(); err != nil {
+		return nil, err
+	}
+	holidays := []Holiday{}
+	loc, err := time.LoadLocation("Asia/Tokyo")
+	if err != nil {
+		return nil, err
+	}
+	for {
+		record, err := reader.Read()
+		if err != nil {
+			if err.Error() == "EOF" {
+				break
+			}
+			return nil, err
+		}
+		parsedDate, err := time.ParseInLocation("2006/1/2", record[0], loc)
+		if err != nil {
+			log.Printf("failed to parse date: %v", err)
+			continue
+		}
+		holidays = append(holidays, Holiday{
+			Date: parsedDate,
+			Name: record[1],
+		})
+	}
+
+	return holidays, nil
 }
 
 func main() {

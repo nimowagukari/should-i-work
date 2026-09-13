@@ -123,3 +123,10 @@ func TestIsWeekend(t *testing.T) {
 		t.Errorf("expected Monday not to be weekend")
 	}
 }
+
+func TestParseDate(t *testing.T) {
+	_, err := parseHolidays()
+	if err != nil {
+		t.Fatalf("parseHolidays returned error: %v", err)
+	}
+}
