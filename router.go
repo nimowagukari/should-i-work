@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"log"
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
@@ -44,9 +45,11 @@ func newRouter() http.Handler {
 func handleWorkdayByDate(w http.ResponseWriter, r *http.Request) {
 	decision, errResp, status := computeWorkdayDecision(r.PathValue("date"))
 	if errResp != nil {
+		addLogAttrs(r, slog.String("error.type", errResp.Code))
 		writeJSON(w, status, *errResp)
 		return
 	}
+	addLogAttrs(r, slog.String("workday.date", decision.Date), slog.Bool("workday.is_workday", decision.IsWorkday))
 	writeJSON(w, status, *decision)
 }
 
@@ -83,6 +86,7 @@ func computeWorkdayDecision(dateStr string) (*WorkdayDecision, *ErrorResponse, i
 
 // notFoundHandler はどのルートにも一致しなかったリクエストに対する 404 レスポンスを返します。
 func notFoundHandler(w http.ResponseWriter, r *http.Request) {
+	addLogAttrs(r, slog.String("error.type", "NOT_FOUND"))
 	writeJSON(w, http.StatusNotFound, ErrorResponse{
 		Code:    "NOT_FOUND",
 		Message: "resource not found",
