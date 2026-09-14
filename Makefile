@@ -11,7 +11,7 @@ test: ## test golang code
 	go test -v ./...
 
 build: ## build lambda binary (bootstrap)
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o bootstrap main.go
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o bootstrap .
 
 zip: build ## zip lambda binary for deployment
 	zip -j $(ZIP_FILE) bootstrap
