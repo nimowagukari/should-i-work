@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"log"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -62,7 +61,7 @@ func computeWorkdayDecision(dateStr string) (*WorkdayDecision, *ErrorResponse, i
 
 	loc, err := jstLocation()
 	if err != nil {
-		log.Printf("failed to load JST location: %v", err)
+		logger.Error("failed to load JST location", slog.Any("error", err))
 		return nil, &ErrorResponse{Code: "INTERNAL_ERROR", Message: "internal server error"}, http.StatusInternalServerError
 	}
 
@@ -74,7 +73,7 @@ func computeWorkdayDecision(dateStr string) (*WorkdayDecision, *ErrorResponse, i
 
 	holidays, err := loadHolidaySet()
 	if err != nil {
-		log.Printf("failed to load holidays: %v", err)
+		logger.Error("failed to load holidays", slog.Any("error", err))
 		return nil, &ErrorResponse{Code: "INTERNAL_ERROR", Message: "internal server error"}, http.StatusInternalServerError
 	}
 
@@ -122,7 +121,7 @@ func newInvalidDateError(details map[string]interface{}) *ErrorResponse {
 func marshalOrFallback(v interface{}) ([]byte, bool) {
 	body, err := json.Marshal(v)
 	if err != nil {
-		log.Printf("failed to marshal response: %v", err)
+		logger.Error("failed to marshal response", slog.Any("error", err))
 		return []byte(`{"code":"INTERNAL_ERROR","message":"internal server error"}`), false
 	}
 	return body, true

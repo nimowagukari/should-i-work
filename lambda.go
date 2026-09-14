@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -21,7 +21,7 @@ import (
 func handleRequest(ctx context.Context, req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	httpReq, err := toHTTPRequest(ctx, req)
 	if err != nil {
-		log.Printf("failed to build http request: %v", err)
+		logger.Error("failed to build http request", slog.Any("error", err))
 		return newErrorResponse(http.StatusInternalServerError, ErrorResponse{
 			Code:    "INTERNAL_ERROR",
 			Message: "internal server error",

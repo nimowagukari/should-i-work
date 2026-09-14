@@ -4,7 +4,7 @@ import (
 	"encoding/csv"
 	"errors"
 	"io"
-	"log"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -75,7 +75,7 @@ func parseHolidays() (map[string]struct{}, error) {
 		}
 		parsedDate, err := time.ParseInLocation(csvDateLayout, record[0], loc)
 		if err != nil {
-			log.Printf("failed to parse date %q: %v", record[0], err)
+			logger.Warn("failed to parse holiday date", slog.String("value", record[0]), slog.Any("error", err))
 			continue
 		}
 		holidays[parsedDate.Format(isoDateLayout)] = struct{}{}
