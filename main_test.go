@@ -79,6 +79,52 @@ func TestHandleRequest_NotFound(t *testing.T) {
 	}
 }
 
+func TestHandleRequest_WithBasePath(t *testing.T) {
+	// api gateway の base_path_mapping 経由で本番相当のプレフィックス付きパスが
+	// 渡ってきた場合でもルーティングできることを確認する。
+	req := events.APIGatewayProxyRequest{
+		HTTPMethod: http.MethodGet,
+		Path:       "/should-i-work/v1/workdays/2024-01-01",
+	}
+
+	resp, err := handleRequest(context.Background(), req)
+	if err != nil {
+		t.Fatalf("handleRequest returned error: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected status code: got %d, want %d (body=%s)", resp.StatusCode, http.StatusOK, resp.Body)
+	}
+
+	var body WorkdayDecision
+	if err := json.Unmarshal([]byte(resp.Body), &body); err != nil {
+		t.Fatalf("failed to unmarshal response body: %v", err)
+	}
+	if body.Date != "2024-01-01" {
+		t.Errorf("unexpected date: got %s, want %s", body.Date, "2024-01-01")
+	}
+}
+
+func TestStripBasePath(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+		want string
+	}{
+		{"プレフィックス付きは除去", "/should-i-work/v1/workdays/2024-01-01", "/v1/workdays/2024-01-01"},
+		{"プレフィックスのみのパスはルートになる", "/should-i-work", "/"},
+		{"プレフィックスなしはそのまま", "/v1/workdays/2024-01-01", "/v1/workdays/2024-01-01"},
+		{"部分一致（別名）はプレフィックスとみなさない", "/should-i-workers/x", "/should-i-workers/x"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := stripBasePath(tt.path); got != tt.want {
+				t.Errorf("stripBasePath(%q) = %q, want %q", tt.path, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestIsWeekend(t *testing.T) {
 	sat := time.Date(1970, 1, 3, 0, 0, 0, 0, time.UTC) // 土曜日
 	sun := time.Date(1970, 1, 4, 0, 0, 0, 0, time.UTC) // 日曜日

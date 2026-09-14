@@ -5,6 +5,9 @@ info:
   description: |
     指定した日付が労働日（出勤すべき日）かどうかを判定するシンプルな API。
 
+servers:
+  - url: https://api.nimowagukari.net/should-i-work
+
 tags:
   - name: workdays
     description: 労働日判定に関するエンドポイント

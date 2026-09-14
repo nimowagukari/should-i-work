@@ -12,6 +12,13 @@ import (
 	"github.com/aws/aws-lambda-go/events"
 )
 
+// basePath は API Gateway のカスタムドメインに設定している base_path_mapping の
+// base_path（infras/terraform/modules/apigateway の local.app_identifier）と
+// 一致させています。REST API のカスタムドメインは、ステージ名とは異なり
+// base_path をプロキシ統合の event.path から取り除かずにそのまま転送するため、
+// アプリ側で明示的に取り除く必要があります。
+const basePath = "/should-i-work"
+
 // handleRequest は API Gateway (REST, `{proxy+}` / `ANY`) からのリクエストイベントを
 // 標準の net/http リクエストへ変換した上で router() にディスパッチし、その結果を
 // API Gateway 向けのレスポンスへ変換して返します。
@@ -46,7 +53,7 @@ func toHTTPRequest(ctx context.Context, req events.APIGatewayProxyRequest) (*htt
 	for k, v := range req.QueryStringParameters {
 		query.Set(k, v)
 	}
-	reqURL := url.URL{Path: req.Path, RawQuery: query.Encode()}
+	reqURL := url.URL{Path: stripBasePath(req.Path), RawQuery: query.Encode()}
 
 	ctx = withRequestID(ctx, req.RequestContext.RequestID)
 
@@ -65,6 +72,20 @@ func toHTTPRequest(ctx context.Context, req events.APIGatewayProxyRequest) (*htt
 	httpReq.RemoteAddr = net.JoinHostPort(req.RequestContext.Identity.SourceIP, "0")
 
 	return httpReq, nil
+}
+
+// stripBasePath は path 先頭の basePath プレフィックスを取り除きます。
+// prefix を含まないパス（デフォルトの execute-api 呼び出し URL やローカルテストなど、
+// カスタムドメインを経由しないリクエスト）はそのまま返します。
+func stripBasePath(path string) string {
+	trimmed, ok := strings.CutPrefix(path, basePath)
+	if !ok || (trimmed != "" && !strings.HasPrefix(trimmed, "/")) {
+		return path
+	}
+	if trimmed == "" {
+		return "/"
+	}
+	return trimmed
 }
 
 // flattenHeaders は http.Header (1キーに複数値を許容) を、API Gateway REST の
