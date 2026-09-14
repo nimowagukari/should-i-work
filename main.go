@@ -49,8 +49,17 @@ func handleRequest(ctx context.Context, req events.APIGatewayProxyRequest) (even
 		}), nil
 	}
 
-	// ISO 8601 (YYYY-MM-DD) をパース
-	parsed, err := time.Parse("2006-01-02", dateStr)
+	loc, err := jstLocation()
+	if err != nil {
+		log.Printf("failed to load JST location: %v", err)
+		return newErrorResponse(http.StatusInternalServerError, ErrorResponse{
+			Code:    "INTERNAL_ERROR",
+			Message: "internal server error",
+		}), nil
+	}
+
+	// ISO 8601 (YYYY-MM-DD) を JST の日付としてパース
+	parsed, err := time.ParseInLocation("2006-01-02", dateStr, loc)
 	if err != nil {
 		return newErrorResponse(http.StatusBadRequest, ErrorResponse{
 			Code:    "INVALID_DATE",
@@ -97,6 +106,13 @@ func isWeekend(t time.Time) bool {
 	wd := t.Weekday()
 	return wd == time.Saturday || wd == time.Sunday
 }
+
+// jstLocation は Asia/Tokyo の time.Location を初回呼び出し時にのみロードし、
+// 以降はキャッシュを返します。日付は本アプリケーション全体で JST として
+// 解釈するため、この関数を唯一の取得経路とします。
+var jstLocation = sync.OnceValues(func() (*time.Location, error) {
+	return time.LoadLocation("Asia/Tokyo")
+})
 
 var (
 	holidaysOnce sync.Once
@@ -159,7 +175,7 @@ func parseHolidays() (map[string]struct{}, error) {
 		return nil, err
 	}
 
-	loc, err := time.LoadLocation("Asia/Tokyo")
+	loc, err := jstLocation()
 	if err != nil {
 		return nil, err
 	}
