@@ -11,6 +11,15 @@ import (
 	"github.com/nimowagukari/should-i-work/internal/data"
 )
 
+const (
+	// isoDateLayout は本アプリケーションが API の入出力・内部の日付キーとして
+	// 扱う ISO 8601 (YYYY-MM-DD) の time.Parse/Format 用レイアウトです。
+	isoDateLayout = "2006-01-02"
+	// csvDateLayout は syukujitsu.csv に記録されている日付表記
+	// (YYYY/M/D、月日はゼロ埋めなし) の time.Parse 用レイアウトです。
+	csvDateLayout = "2006/1/2"
+)
+
 // isWeekend は与えられた日付が土日であれば true を返します。
 func isWeekend(t time.Time) bool {
 	wd := t.Weekday()
@@ -31,7 +40,7 @@ var loadHolidaySet = sync.OnceValues(parseHolidays)
 
 // isHoliday は与えられた日付が祝日集合に含まれていれば true を返します。
 func isHoliday(t time.Time, holidays map[string]struct{}) bool {
-	_, ok := holidays[t.Format("2006-01-02")]
+	_, ok := holidays[t.Format(isoDateLayout)]
 	return ok
 }
 
@@ -64,12 +73,12 @@ func parseHolidays() (map[string]struct{}, error) {
 		if err != nil {
 			return nil, err
 		}
-		parsedDate, err := time.ParseInLocation("2006/1/2", record[0], loc)
+		parsedDate, err := time.ParseInLocation(csvDateLayout, record[0], loc)
 		if err != nil {
 			log.Printf("failed to parse date %q: %v", record[0], err)
 			continue
 		}
-		holidays[parsedDate.Format("2006-01-02")] = struct{}{}
+		holidays[parsedDate.Format(isoDateLayout)] = struct{}{}
 	}
 
 	return holidays, nil

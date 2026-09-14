@@ -63,7 +63,7 @@ func computeWorkdayDecision(dateStr string) (*WorkdayDecision, *ErrorResponse, i
 	}
 
 	// ISO 8601 (YYYY-MM-DD) を JST の日付としてパース
-	parsed, err := time.ParseInLocation("2006-01-02", dateStr, loc)
+	parsed, err := time.ParseInLocation(isoDateLayout, dateStr, loc)
 	if err != nil {
 		return nil, newInvalidDateError(map[string]interface{}{"reason": "parse_error", "value": dateStr}), http.StatusBadRequest
 	}
