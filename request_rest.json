@@ -1,10 +1,7 @@
 {
-    "path": "/v1/workday",
+    "path": "/v1/workdays/2026-09-14",
     "httpMethod": "GET",
     "headers": {
         "Content-Type": "application/json"
-    },
-    "queryStringParameters": {
-        "date": "2026-09-14"
     }
 }

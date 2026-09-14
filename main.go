@@ -8,6 +8,9 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -29,76 +32,144 @@ type ErrorResponse struct {
 	Details map[string]interface{} `json:"details,omitempty"`
 }
 
-// handleRequest は API Gateway (REST) からのリクエストを受け取り、
-// `/v1/workday` GET エンドポイントに対するレスポンスを返します。
+// handleRequest は API Gateway (REST, `{proxy+}` / `ANY`) からのリクエストイベントを
+// 標準の net/http リクエストへ変換した上で router() にディスパッチし、その結果を
+// API Gateway 向けのレスポンスへ変換して返します。
+//
+// パス毎の実際の処理内容は router() が持つルーティングテーブルに集約されており、
+// 新しいエンドポイントを追加する際はここではなく newRouter() を変更します。
 func handleRequest(ctx context.Context, req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
-	// ルーティング: 今回は 1 エンドポイントのみなので、簡易なチェックにとどめる
-	if req.Path != "/v1/workday" || req.HTTPMethod != http.MethodGet {
-		return newErrorResponse(http.StatusNotFound, ErrorResponse{
-			Code:    "NOT_FOUND",
-			Message: "resource not found",
+	httpReq, err := toHTTPRequest(ctx, req)
+	if err != nil {
+		log.Printf("failed to build http request: %v", err)
+		return newErrorResponse(http.StatusInternalServerError, ErrorResponse{
+			Code:    "INTERNAL_ERROR",
+			Message: "internal server error",
 		}), nil
 	}
 
-	dateStr, ok := req.QueryStringParameters["date"]
-	if !ok || dateStr == "" {
-		return newErrorResponse(http.StatusBadRequest, ErrorResponse{
+	rec := httptest.NewRecorder()
+	router().ServeHTTP(rec, httpReq)
+
+	return events.APIGatewayProxyResponse{
+		StatusCode: rec.Code,
+		Headers:    flattenHeaders(rec.Header()),
+		Body:       rec.Body.String(),
+	}, nil
+}
+
+// toHTTPRequest は API Gateway のリクエストイベントを、net/http.ServeMux で
+// ディスパッチ可能な *http.Request に変換します。
+func toHTTPRequest(ctx context.Context, req events.APIGatewayProxyRequest) (*http.Request, error) {
+	query := url.Values{}
+	for k, v := range req.QueryStringParameters {
+		query.Set(k, v)
+	}
+	reqURL := url.URL{Path: req.Path, RawQuery: query.Encode()}
+
+	return http.NewRequestWithContext(ctx, req.HTTPMethod, reqURL.String(), strings.NewReader(req.Body))
+}
+
+// flattenHeaders は http.Header (1キーに複数値を許容) を、API Gateway REST の
+// プロキシ統合レスポンスが要求する 1 キー 1 値の map[string]string に変換します。
+func flattenHeaders(h http.Header) map[string]string {
+	out := make(map[string]string, len(h))
+	for k, v := range h {
+		if len(v) > 0 {
+			out[k] = v[0]
+		}
+	}
+	return out
+}
+
+// router はアプリケーション全体のルーティングテーブルを初回呼び出し時にのみ構築し、
+// 以降はキャッシュを返します。Lambda の実行環境はウォームスタート時に再利用されるため、
+// テーブルの構築はコールドスタート時の一度だけで済みます。
+var router = sync.OnceValue(newRouter)
+
+// newRouter は本アプリケーションが提供するエンドポイントのルーティングテーブルを構築します。
+// 新しいエンドポイントを追加する際はこのテーブルに登録します。
+func newRouter() *http.ServeMux {
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("GET /v1/workdays/{date}", handleWorkdayByDate) // 指定日が労働日かどうか
+
+	// 上記いずれにも一致しないパスは 404 を返す。
+	mux.HandleFunc("/", notFoundHandler)
+
+	return mux
+}
+
+// handleWorkdayByDate は GET /v1/workdays/{date} のハンドラです。
+func handleWorkdayByDate(w http.ResponseWriter, r *http.Request) {
+	decision, errResp, status := computeWorkdayDecision(r.PathValue("date"))
+	if errResp != nil {
+		writeJSON(w, status, *errResp)
+		return
+	}
+	writeJSON(w, status, *decision)
+}
+
+// computeWorkdayDecision は指定された日付に基づき労働日判定を行います。
+// 成功時は (*WorkdayDecision, nil, http.StatusOK) を、失敗時は (nil, *ErrorResponse, ステータスコード) を返します。
+func computeWorkdayDecision(dateStr string) (*WorkdayDecision, *ErrorResponse, int) {
+	if dateStr == "" {
+		return nil, &ErrorResponse{
 			Code:    "INVALID_DATE",
 			Message: "date は YYYY-MM-DD 形式で指定してください。",
 			Details: map[string]interface{}{"reason": "missing"},
-		}), nil
+		}, http.StatusBadRequest
 	}
 
 	loc, err := jstLocation()
 	if err != nil {
 		log.Printf("failed to load JST location: %v", err)
-		return newErrorResponse(http.StatusInternalServerError, ErrorResponse{
-			Code:    "INTERNAL_ERROR",
-			Message: "internal server error",
-		}), nil
+		return nil, &ErrorResponse{Code: "INTERNAL_ERROR", Message: "internal server error"}, http.StatusInternalServerError
 	}
 
 	// ISO 8601 (YYYY-MM-DD) を JST の日付としてパース
 	parsed, err := time.ParseInLocation("2006-01-02", dateStr, loc)
 	if err != nil {
-		return newErrorResponse(http.StatusBadRequest, ErrorResponse{
+		return nil, &ErrorResponse{
 			Code:    "INVALID_DATE",
 			Message: "date は YYYY-MM-DD 形式で指定してください。",
 			Details: map[string]interface{}{"reason": "parse_error", "value": dateStr},
-		}), nil
+		}, http.StatusBadRequest
 	}
 
 	holidays, err := loadHolidaySet()
 	if err != nil {
 		log.Printf("failed to load holidays: %v", err)
-		return newErrorResponse(http.StatusInternalServerError, ErrorResponse{
-			Code:    "INTERNAL_ERROR",
-			Message: "internal server error",
-		}), nil
+		return nil, &ErrorResponse{Code: "INTERNAL_ERROR", Message: "internal server error"}, http.StatusInternalServerError
 	}
 
 	// 土日、および syukujitsu.csv に含まれる祝日（振替休日・国民の休日を含む）以外を労働日とみなす。
 	isWorkday := !isWeekend(parsed) && !isHoliday(parsed, holidays)
 
-	body, err := json.Marshal(WorkdayDecision{
-		Date:      dateStr,
-		IsWorkday: isWorkday,
-	})
-	if err != nil {
-		log.Printf("failed to marshal WorkdayDecision: %v", err)
-		return newErrorResponse(http.StatusInternalServerError, ErrorResponse{
-			Code:    "INTERNAL_ERROR",
-			Message: "internal server error",
-		}), nil
-	}
+	return &WorkdayDecision{Date: dateStr, IsWorkday: isWorkday}, nil, http.StatusOK
+}
 
-	return events.APIGatewayProxyResponse{
-		StatusCode: http.StatusOK,
-		Headers: map[string]string{
-			"Content-Type": "application/json",
-		},
-		Body: string(body),
-	}, nil
+// notFoundHandler はどのルートにも一致しなかったリクエストに対する 404 レスポンスを返します。
+func notFoundHandler(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusNotFound, ErrorResponse{
+		Code:    "NOT_FOUND",
+		Message: "resource not found",
+	})
+}
+
+// writeJSON は値を JSON にシリアライズして http.ResponseWriter に書き込みます。
+func writeJSON(w http.ResponseWriter, status int, v interface{}) {
+	body, err := json.Marshal(v)
+	if err != nil {
+		log.Printf("failed to marshal response: %v", err)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"code":"INTERNAL_ERROR","message":"internal server error"}`))
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_, _ = w.Write(body)
 }
 
 // isWeekend は与えられた日付が土日であれば true を返します。
@@ -137,6 +208,7 @@ func isHoliday(t time.Time, holidays map[string]struct{}) bool {
 }
 
 // newErrorResponse は ErrorResponse を JSON にシリアライズして返します。
+// router() のディスパッチに乗せられない、リクエスト変換自体の失敗時にのみ使用します。
 func newErrorResponse(status int, errBody ErrorResponse) events.APIGatewayProxyResponse {
 	body, err := json.Marshal(errBody)
 	if err != nil {

@@ -13,10 +13,7 @@ import (
 func TestHandleRequest_Success(t *testing.T) {
 	req := events.APIGatewayProxyRequest{
 		HTTPMethod: http.MethodGet,
-		Path:       "/v1/workday",
-		QueryStringParameters: map[string]string{
-			"date": "2024-01-01",
-		},
+		Path:       "/v1/workdays/2024-01-01",
 	}
 
 	resp, err := handleRequest(context.Background(), req)
@@ -36,36 +33,10 @@ func TestHandleRequest_Success(t *testing.T) {
 	}
 }
 
-func TestHandleRequest_MissingDate(t *testing.T) {
-	req := events.APIGatewayProxyRequest{
-		HTTPMethod: http.MethodGet,
-		Path:       "/v1/workday",
-	}
-
-	resp, err := handleRequest(context.Background(), req)
-	if err != nil {
-		t.Fatalf("handleRequest returned error: %v", err)
-	}
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Fatalf("unexpected status code: got %d, want %d", resp.StatusCode, http.StatusBadRequest)
-	}
-
-	var body ErrorResponse
-	if err := json.Unmarshal([]byte(resp.Body), &body); err != nil {
-		t.Fatalf("failed to unmarshal response body: %v", err)
-	}
-	if body.Code != "INVALID_DATE" {
-		t.Errorf("unexpected error code: got %s, want %s", body.Code, "INVALID_DATE")
-	}
-}
-
 func TestHandleRequest_InvalidDateFormat(t *testing.T) {
 	req := events.APIGatewayProxyRequest{
 		HTTPMethod: http.MethodGet,
-		Path:       "/v1/workday",
-		QueryStringParameters: map[string]string{
-			"date": "2026/05/03", // 不正形式
-		},
+		Path:       "/v1/workdays/2026-13-45", // 不正形式（存在しない月日）
 	}
 
 	resp, err := handleRequest(context.Background(), req)
@@ -138,10 +109,7 @@ func TestHandleRequest_Holiday(t *testing.T) {
 	// 2024-01-01 は元日（月曜日）で祝日かつ平日
 	req := events.APIGatewayProxyRequest{
 		HTTPMethod: http.MethodGet,
-		Path:       "/v1/workday",
-		QueryStringParameters: map[string]string{
-			"date": "2024-01-01",
-		},
+		Path:       "/v1/workdays/2024-01-01",
 	}
 
 	resp, err := handleRequest(context.Background(), req)
@@ -162,10 +130,7 @@ func TestHandleRequest_SubstituteHoliday(t *testing.T) {
 	// 2024-02-12 は建国記念の日(2/11)の振替休日（月曜日）
 	req := events.APIGatewayProxyRequest{
 		HTTPMethod: http.MethodGet,
-		Path:       "/v1/workday",
-		QueryStringParameters: map[string]string{
-			"date": "2024-02-12",
-		},
+		Path:       "/v1/workdays/2024-02-12",
 	}
 
 	resp, err := handleRequest(context.Background(), req)
@@ -186,10 +151,7 @@ func TestHandleRequest_PlainWeekday(t *testing.T) {
 	// 2024-01-04 は木曜日で祝日でも週末でもない
 	req := events.APIGatewayProxyRequest{
 		HTTPMethod: http.MethodGet,
-		Path:       "/v1/workday",
-		QueryStringParameters: map[string]string{
-			"date": "2024-01-04",
-		},
+		Path:       "/v1/workdays/2024-01-04",
 	}
 
 	resp, err := handleRequest(context.Background(), req)

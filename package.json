@@ -1,0 +1,11 @@
+{
+  "name": "should-i-work",
+  "private": true,
+  "description": "OpenAPI ドキュメント等の検証に使う開発ツール群（アプリ本体は Go 製・Makefile 参照）",
+  "scripts": {
+    "lint:openapi": "node scripts/lint-openapi.mjs"
+  },
+  "devDependencies": {
+    "yaml": "^2.8.1"
+  }
+}

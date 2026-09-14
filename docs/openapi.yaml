@@ -1,18 +1,18 @@
 openapi: 3.1.0
 info:
   title: should-i-work API
-  version: 1.0.0
+  version: 0.3.0
   description: |
     指定した日付が労働日（出勤すべき日）かどうかを判定するシンプルな API。
 
 tags:
-  - name: workday
+  - name: workdays
     description: 労働日判定に関するエンドポイント
 
 paths:
-  /v1/workday:
+  /v1/workdays/{date}:
     get:
-      tags: [workday]
+      tags: [workdays]
       summary: 指定した日付が労働日かどうかを判定する
       description: |
         指定された日付が日本の祝日・振替休日・国民の休日・週末などを踏まえて
@@ -20,7 +20,7 @@ paths:
         国やタイムゾーンは内部実装として固定（例: JP / Asia/Tokyo）とし、
         API インターフェースとしては `date` のみを要求します。
       parameters:
-        - in: query
+        - in: path
           name: date
           required: true
           description: 判定対象の日付 (ISO 8601 日付形式 `YYYY-MM-DD`)
