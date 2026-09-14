@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -38,7 +39,8 @@ func handleRequest(ctx context.Context, req events.APIGatewayProxyRequest) (even
 }
 
 // toHTTPRequest は API Gateway のリクエストイベントを、net/http.ServeMux で
-// ディスパッチ可能な *http.Request に変換します。
+// ディスパッチ可能な *http.Request に変換します。ヘッダー・送信元 IP・リクエスト ID は
+// loggingMiddleware がアクセスログへ含めるために利用します。
 func toHTTPRequest(ctx context.Context, req events.APIGatewayProxyRequest) (*http.Request, error) {
 	query := url.Values{}
 	for k, v := range req.QueryStringParameters {
@@ -46,7 +48,23 @@ func toHTTPRequest(ctx context.Context, req events.APIGatewayProxyRequest) (*htt
 	}
 	reqURL := url.URL{Path: req.Path, RawQuery: query.Encode()}
 
-	return http.NewRequestWithContext(ctx, req.HTTPMethod, reqURL.String(), strings.NewReader(req.Body))
+	ctx = withRequestID(ctx, req.RequestContext.RequestID)
+
+	httpReq, err := http.NewRequestWithContext(ctx, req.HTTPMethod, reqURL.String(), strings.NewReader(req.Body))
+	if err != nil {
+		return nil, err
+	}
+
+	for k, v := range req.Headers {
+		httpReq.Header.Set(k, v)
+	}
+	httpReq.Host = req.Headers["Host"]
+	// API Gateway (プロキシ統合) からのリクエストは実際の TCP 接続情報を持たないため、
+	// アクセスログの client.address 用に送信元 IP を RemoteAddr の形式 (host:port) へ
+	// 変換する。ポート番号は取得できないため 0 で埋める。
+	httpReq.RemoteAddr = net.JoinHostPort(req.RequestContext.Identity.SourceIP, "0")
+
+	return httpReq, nil
 }
 
 // flattenHeaders は http.Header (1キーに複数値を許容) を、API Gateway REST の
