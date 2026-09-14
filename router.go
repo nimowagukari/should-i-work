@@ -21,14 +21,15 @@ type ErrorResponse struct {
 	Details map[string]interface{} `json:"details,omitempty"`
 }
 
-// router はアプリケーション全体のルーティングテーブルを初回呼び出し時にのみ構築し、
-// 以降はキャッシュを返します。Lambda の実行環境はウォームスタート時に再利用されるため、
-// テーブルの構築はコールドスタート時の一度だけで済みます。
+// router はアプリケーション全体のハンドラ（ルーティングテーブル + アクセスログ用
+// ミドルウェア）を初回呼び出し時にのみ構築し、以降はキャッシュを返します。Lambda の
+// 実行環境はウォームスタート時に再利用されるため、構築はコールドスタート時の一度だけで済みます。
 var router = sync.OnceValue(newRouter)
 
-// newRouter は本アプリケーションが提供するエンドポイントのルーティングテーブルを構築します。
-// 新しいエンドポイントを追加する際はこのテーブルに登録します。
-func newRouter() *http.ServeMux {
+// newRouter は本アプリケーションが提供するエンドポイントのルーティングテーブルを構築し、
+// loggingMiddleware でラップして返します。新しいエンドポイントを追加する際はこの
+// ルーティングテーブルに登録します。
+func newRouter() http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /v1/workdays/{date}", handleWorkdayByDate) // 指定日が労働日かどうか
@@ -36,7 +37,7 @@ func newRouter() *http.ServeMux {
 	// 上記いずれにも一致しないパスは 404 を返す。
 	mux.HandleFunc("/", notFoundHandler)
 
-	return mux
+	return Chain(mux, loggingMiddleware(logger))
 }
 
 // handleWorkdayByDate は GET /v1/workdays/{date} のハンドラです。
