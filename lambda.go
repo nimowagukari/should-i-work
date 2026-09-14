@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -64,18 +63,12 @@ func flattenHeaders(h http.Header) map[string]string {
 
 // newErrorResponse は ErrorResponse を JSON にシリアライズして返します。
 // router() のディスパッチに乗せられない、リクエスト変換自体の失敗時にのみ使用します。
+// シリアライズに失敗した場合は、呼び出し元が指定した status に関わらず
+// 500 (INTERNAL_ERROR) を返します。
 func newErrorResponse(status int, errBody ErrorResponse) events.APIGatewayProxyResponse {
-	body, err := json.Marshal(errBody)
-	if err != nil {
-		log.Printf("failed to marshal ErrorResponse: %v", err)
-		// 最終手段として、素のテキストを返す
-		return events.APIGatewayProxyResponse{
-			StatusCode: http.StatusInternalServerError,
-			Body:       `{"code":"INTERNAL_ERROR","message":"internal server error"}`,
-			Headers: map[string]string{
-				"Content-Type": "application/json",
-			},
-		}
+	body, ok := marshalOrFallback(errBody)
+	if !ok {
+		status = http.StatusInternalServerError
 	}
 
 	return events.APIGatewayProxyResponse{

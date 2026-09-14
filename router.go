@@ -53,11 +53,7 @@ func handleWorkdayByDate(w http.ResponseWriter, r *http.Request) {
 // 成功時は (*WorkdayDecision, nil, http.StatusOK) を、失敗時は (nil, *ErrorResponse, ステータスコード) を返します。
 func computeWorkdayDecision(dateStr string) (*WorkdayDecision, *ErrorResponse, int) {
 	if dateStr == "" {
-		return nil, &ErrorResponse{
-			Code:    "INVALID_DATE",
-			Message: "date は YYYY-MM-DD 形式で指定してください。",
-			Details: map[string]interface{}{"reason": "missing"},
-		}, http.StatusBadRequest
+		return nil, newInvalidDateError(map[string]interface{}{"reason": "missing"}), http.StatusBadRequest
 	}
 
 	loc, err := jstLocation()
@@ -69,11 +65,7 @@ func computeWorkdayDecision(dateStr string) (*WorkdayDecision, *ErrorResponse, i
 	// ISO 8601 (YYYY-MM-DD) を JST の日付としてパース
 	parsed, err := time.ParseInLocation("2006-01-02", dateStr, loc)
 	if err != nil {
-		return nil, &ErrorResponse{
-			Code:    "INVALID_DATE",
-			Message: "date は YYYY-MM-DD 形式で指定してください。",
-			Details: map[string]interface{}{"reason": "parse_error", "value": dateStr},
-		}, http.StatusBadRequest
+		return nil, newInvalidDateError(map[string]interface{}{"reason": "parse_error", "value": dateStr}), http.StatusBadRequest
 	}
 
 	holidays, err := loadHolidaySet()
@@ -97,16 +89,36 @@ func notFoundHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // writeJSON は値を JSON にシリアライズして http.ResponseWriter に書き込みます。
+// シリアライズに失敗した場合は、呼び出し元が指定した status に関わらず
+// 500 (INTERNAL_ERROR) を返します。
 func writeJSON(w http.ResponseWriter, status int, v interface{}) {
-	body, err := json.Marshal(v)
-	if err != nil {
-		log.Printf("failed to marshal response: %v", err)
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(`{"code":"INTERNAL_ERROR","message":"internal server error"}`))
-		return
+	body, ok := marshalOrFallback(v)
+	if !ok {
+		status = http.StatusInternalServerError
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_, _ = w.Write(body)
+}
+
+// newInvalidDateError は date パラメータが不正だった場合の ErrorResponse を構築します。
+// details には理由 (reason) や実際に渡された値など、失敗要因ごとに異なる情報を渡します。
+func newInvalidDateError(details map[string]interface{}) *ErrorResponse {
+	return &ErrorResponse{
+		Code:    "INVALID_DATE",
+		Message: "date は YYYY-MM-DD 形式で指定してください。",
+		Details: details,
+	}
+}
+
+// marshalOrFallback は値を JSON にシリアライズします。シリアライズに失敗した場合は
+// ログに記録した上で、固定の INTERNAL_ERROR ボディを表す JSON へフォールバックし、
+// 第2戻り値に false を返します（呼び出し元がステータスコードを差し替えるため）。
+func marshalOrFallback(v interface{}) ([]byte, bool) {
+	body, err := json.Marshal(v)
+	if err != nil {
+		log.Printf("failed to marshal response: %v", err)
+		return []byte(`{"code":"INTERNAL_ERROR","message":"internal server error"}`), false
+	}
+	return body, true
 }
