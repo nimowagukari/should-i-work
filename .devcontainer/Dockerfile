@@ -50,3 +50,9 @@ RUN go install golang.org/x/tools/gopls@latest && \
 
 # Claude 設定
 RUN mkdir -p /home/golang/.claude
+
+# Tfswitch 設定
+RUN mkdir -p ${HOME}/.local/bin \
+    && curl -L https://raw.githubusercontent.com/warrensbox/terraform-switcher/master/install.sh \
+        | bash -s -- -b ${HOME}/.local/bin \
+    && ${HOME}/.local/bin/tfswitch -b ${HOME}/.local/bin/terraform -u
