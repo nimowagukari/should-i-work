@@ -20,6 +20,12 @@ resource "aws_lambda_function" "this" {
     log_format = "JSON"
     log_group  = aws_cloudwatch_log_group.this.name
   }
+
+  # 初回作成後のコード更新は `aws lambda update-function-code` で行うため、
+  # terraform apply では関数コードの差分を無視する
+  lifecycle {
+    ignore_changes = [filename, source_code_hash]
+  }
 }
 resource "aws_iam_role" "this" {
   name = "${local.app_identifier}-lambda-role"
@@ -60,5 +66,5 @@ resource "aws_cloudwatch_log_group" "this" {
 data "archive_file" "this" {
   type        = "zip"
   output_path = "${path.module}/lambda.zip"
-  source_file = "/workspaces/should-i-work/src/golang/bootstrap"
+  source_file = "/workspaces/should-i-work/bootstrap"
 }
