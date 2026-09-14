@@ -24,21 +24,10 @@ var jstLocation = sync.OnceValues(func() (*time.Location, error) {
 	return time.LoadLocation("Asia/Tokyo")
 })
 
-var (
-	holidaysOnce sync.Once
-	holidaySet   map[string]struct{}
-	holidaysErr  error
-)
-
 // loadHolidaySet は parseHolidays の結果を初回呼び出し時にのみ取得し、
 // 以降はキャッシュを返します。Lambda の実行環境はウォームスタート時に
 // 再利用されるため、CSV のパースはコールドスタート時の一度だけで済みます。
-func loadHolidaySet() (map[string]struct{}, error) {
-	holidaysOnce.Do(func() {
-		holidaySet, holidaysErr = parseHolidays()
-	})
-	return holidaySet, holidaysErr
-}
+var loadHolidaySet = sync.OnceValues(parseHolidays)
 
 // isHoliday は与えられた日付が祝日集合に含まれていれば true を返します。
 func isHoliday(t time.Time, holidays map[string]struct{}) bool {
