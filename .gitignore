@@ -269,6 +269,7 @@ terraform.rc
 
 # End of https://www.toptal.com/developers/gitignore/api/go,linux,macos,terraform,visualstudiocode,node
 .env
+/.claude/plans
 /bootstrap
 /infras/terraform/modules/lambda/lambda.zip
 /infras/terraform/terraform.tfbackend

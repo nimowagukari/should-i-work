@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -33,6 +34,8 @@ func newRouter() http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /v1/workdays/{date}", handleWorkdayByDate) // 指定日が労働日かどうか
+	mux.HandleFunc("GET /docs", redirectToDocsIndex)               // 末尾スラッシュなしを補正
+	mux.Handle("GET /docs/", newDocsHandler())                     // Swagger UI ドキュメント
 
 	// 上記いずれにも一致しないパスは 404 を返す。
 	mux.HandleFunc("/", notFoundHandler)
@@ -50,6 +53,40 @@ func handleWorkdayByDate(w http.ResponseWriter, r *http.Request) {
 	}
 	addLogAttrs(r, slog.String("workday.date", decision.Date), slog.Bool("workday.is_workday", decision.IsWorkday))
 	writeJSON(w, status, *decision)
+}
+
+// newDocsHandler は埋め込んだ docs/ 配下（Swagger UI 一式）を GET /docs/ 以下として
+// 配信する http.Handler を構築します。docsFS は "docs/index.html" のようにディレクトリ名
+// を含むパスでファイルを保持しているため、fs.Sub で "docs" を取り除き、
+// StripPrefix 適用後の URL パスの残りがそのまま埋め込み FS 内のパスに対応するようにします。
+func newDocsHandler() http.Handler {
+	sub, err := fs.Sub(docsFS, "docs")
+	if err != nil {
+		// docs は //go:embed docs によりビルド時に静的に決定される埋め込み対象であり、
+		// ビルドが壊れていない限りこのエラーは発生しない。
+		panic(err)
+	}
+	return http.StripPrefix("/docs/", http.FileServerFS(sub))
+}
+
+// redirectToDocsIndex は末尾スラッシュなしの GET /docs を GET /docs/ へ補正します。
+//
+// http.ServeMux は "/docs/" のようなサブツリー登録に対し "/docs" へのリクエストを
+// 自動的にリダイレクトしますが、その Location は "/docs/" のようなルート直下絶対パスに
+// なります。本アプリは basePath（"/should-i-work"）を stripBasePath で除去した後の
+// パスに対してルーティングしているため、その自動リダイレクトをそのまま使うと
+// basePath が欠落した誤った Location（api ドメイン直下の /docs/）を返してしまいます。
+// そのため、この動作は明示的な GET /docs の登録で上書きし、末尾に "/" を付けるだけの
+// 相対パスを Location に直接設定することで、basePath の有無によらず正しい URL へ
+// 補正します（net/http.Redirect は相対パスも現在の（basePath 除去後の）パスに対して
+// 絶対パス化してしまうため使用しません）。
+func redirectToDocsIndex(w http.ResponseWriter, r *http.Request) {
+	target := "docs/"
+	if q := r.URL.RawQuery; q != "" {
+		target += "?" + q
+	}
+	w.Header().Set("Location", target)
+	w.WriteHeader(http.StatusMovedPermanently)
 }
 
 // computeWorkdayDecision は指定された日付に基づき労働日判定を行います。

@@ -3,9 +3,13 @@
   "private": true,
   "description": "OpenAPI ドキュメント等の検証に使う開発ツール群（アプリ本体は Go 製・Makefile 参照）",
   "scripts": {
-    "lint:openapi": "node scripts/lint-openapi.mjs"
+    "lint:openapi": "node scripts/lint-openapi.mjs",
+    "build:swagger": "node scripts/build-swagger.mjs"
   },
   "devDependencies": {
     "yaml": "^2.8.1"
+  },
+  "dependencies": {
+    "swagger-ui-dist": "^5.32.15"
   }
 }

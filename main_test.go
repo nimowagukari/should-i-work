@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -101,6 +102,81 @@ func TestHandleRequest_WithBasePath(t *testing.T) {
 	}
 	if body.Date != "2024-01-01" {
 		t.Errorf("unexpected date: got %s, want %s", body.Date, "2024-01-01")
+	}
+}
+
+func TestHandleRequest_Docs_Index(t *testing.T) {
+	req := events.APIGatewayProxyRequest{
+		HTTPMethod: http.MethodGet,
+		Path:       "/should-i-work/docs/",
+	}
+
+	resp, err := handleRequest(context.Background(), req)
+	if err != nil {
+		t.Fatalf("handleRequest returned error: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected status code: got %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+	if ct := resp.Headers["Content-Type"]; !strings.HasPrefix(ct, "text/html") {
+		t.Errorf("unexpected content-type: got %q", ct)
+	}
+	if !strings.Contains(resp.Body, "swagger-ui") {
+		t.Errorf("expected body to contain swagger-ui markup")
+	}
+}
+
+func TestHandleRequest_Docs_Asset(t *testing.T) {
+	req := events.APIGatewayProxyRequest{
+		HTTPMethod: http.MethodGet,
+		Path:       "/should-i-work/docs/openapi.yaml",
+	}
+
+	resp, err := handleRequest(context.Background(), req)
+	if err != nil {
+		t.Fatalf("handleRequest returned error: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected status code: got %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+	if !strings.Contains(resp.Body, "openapi:") {
+		t.Errorf("expected body to contain the openapi.yaml contents")
+	}
+}
+
+func TestHandleRequest_Docs_NoTrailingSlashRedirect(t *testing.T) {
+	// basePath を含んだ状態で末尾スラッシュなしにアクセスした場合、Location が
+	// "/docs/" のような basePath 欠落の絶対パスではなく、basePath を保持できる
+	// 相対パスであることを確認する。
+	req := events.APIGatewayProxyRequest{
+		HTTPMethod: http.MethodGet,
+		Path:       "/should-i-work/docs",
+	}
+
+	resp, err := handleRequest(context.Background(), req)
+	if err != nil {
+		t.Fatalf("handleRequest returned error: %v", err)
+	}
+	if resp.StatusCode != http.StatusMovedPermanently {
+		t.Fatalf("unexpected status code: got %d, want %d", resp.StatusCode, http.StatusMovedPermanently)
+	}
+	if got, want := resp.Headers["Location"], "docs/"; got != want {
+		t.Errorf("unexpected Location: got %q, want %q", got, want)
+	}
+}
+
+func TestHandleRequest_Docs_WithoutBasePath(t *testing.T) {
+	req := events.APIGatewayProxyRequest{
+		HTTPMethod: http.MethodGet,
+		Path:       "/docs/",
+	}
+
+	resp, err := handleRequest(context.Background(), req)
+	if err != nil {
+		t.Fatalf("handleRequest returned error: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected status code: got %d, want %d", resp.StatusCode, http.StatusOK)
 	}
 }
 

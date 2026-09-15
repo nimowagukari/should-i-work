@@ -15,6 +15,8 @@
 
 **注意:** API Gateway REST API のカスタムドメインは、ステージ名とは異なり `base_path` をプロキシ統合の `event.path` から取り除かずにそのまま Lambda へ転送します（AWS の既知の仕様）。そのため本アプリは `lambda.go` の `basePath`（`"/should-i-work"` 固定）と `stripBasePath` で、このプレフィックスを明示的に除去しています。Terraform 側の `base_path`（`local.app_identifier`）とアプリ側の `basePath` は同じ値に固定しているため、変更する場合は両方を合わせて更新してください。
 
+API ドキュメント（Swagger UI）は `https://api.nimowagukari.net/should-i-work/docs/` で参照できます。静的アセット（`docs/` 配下）は `docs.go` の `//go:embed` によりビルド時にバイナリへ同梱されます。
+
 同じドメインを他のアプリと共有したい場合は、各アプリを別リポジトリ・別 REST API として実装し、`data "aws_api_gateway_domain_name"` で本ドメインを参照した上で、そのアプリ専用の `base_path`（例: `other-app`）で `aws_api_gateway_base_path_mapping` を追加してください。
 
 ## 使用方法
